@@ -1,0 +1,4 @@
+# Runtime dependencies for coreai_migrator
+# Install with: pip install -r requirements.txt
+click>=8.1
+rich>=13.7
