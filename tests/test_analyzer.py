@@ -22,9 +22,15 @@ from coreai_migrator.scanner import SourceFile
 FIXTURE_PATH = Path(__file__).parent / "fixtures" / "sample_coreml.swift"
 
 
-def _analyze(content: str, language: str = "swift", severity_filter: Severity | None = None) -> FileReport:
+def _analyze(
+    content: str,
+    language: str = "swift",
+    severity_filter: Severity | None = None,
+) -> FileReport:
     analyzer = Analyzer(severity_filter=severity_filter)
-    return analyzer.analyze_content(content, file_path=Path("Test.swift"), language=language)
+    return analyzer.analyze_content(
+        content, file_path=Path("Test.swift"), language=language
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -35,45 +41,90 @@ def _analyze(content: str, language: str = "swift", severity_filter: Severity | 
 class TestBasicDetection:
     """Verify that individual deprecated API patterns are detected correctly."""
 
-    @pytest.mark.parametrize("snippet,expected_api", [
-        ("import CoreML", "import CoreML"),
-        ("@import CoreML;", "@import CoreML;"),
-        ("#import <CoreML/CoreML.h>", "#import <CoreML/CoreML.h>"),
-        ("let model = try MLModel(contentsOf: url)", "MLModel.init(contentsOf:)"),
-        ("let cfg = MLModelConfiguration()", "MLModelConfiguration"),
-        ("cfg.computeUnits = MLComputeUnits.all", "MLComputeUnits"),
-        ("let arr = try MLMultiArray(shape: [1], dataType: .float32)", "MLMultiArray"),
-        ("let dt = MLMultiArrayDataType.float32", "MLMultiArrayDataType"),
-        ("class MyProvider: MLFeatureProvider {", "MLFeatureProvider"),
-        ("let val = MLFeatureValue(int64: 42)", "MLFeatureValue"),
-        ("let type: MLFeatureType = .int64", "MLFeatureType"),
-        ("let dict = MLDictionaryFeatureProvider(dictionary: d)", "MLDictionaryFeatureProvider"),
-        ("let result = try model.prediction(from: features)", "MLModel.prediction(from:)"),
-        ("let results = try model.predictions(fromBatch: batch)", "MLModel.predictions(fromBatch:)"),
-        ("let opts = MLPredictionOptions()", "MLPredictionOptions"),
-        ("let desc: MLModelDescription = model.modelDescription", "MLModelDescription"),
-        ("let fd: MLFeatureDescription = desc.inputDescriptionsByName[name]!", "MLFeatureDescription"),
-        ("let key = MLModelMetadataKey.author", "MLModelMetadataKey"),
-        ("let vnModel = try VNCoreMLModel(for: mlModel)", "VNCoreMLModel"),
-        ("let request = VNCoreMLRequest(model: vnModel)", "VNCoreMLRequest"),
-        ("let obs: VNCoreMLFeatureValueObservation = result", "VNCoreMLFeatureValueObservation"),
-        ("let nlModel = try NLModel(contentsOf: url)", "NLModel"),
-        ("let nlCfg = NLModelConfiguration()", "NLModelConfiguration"),
-        ("let task = MLUpdateTask(forModelAt: url, ", "MLUpdateTask"),
-        ("let ctx: MLUpdateContext = context", "MLUpdateContext"),
-        ("let ph = MLUpdateProgressHandlers(forEvents: [])", "MLUpdateProgressHandlers"),
-        ("let metric = MLMetricKey.lossValue", "MLMetricKey"),
-        ("let seq: MLSequence = MLSequence.init(strings: [])", "MLSequence"),
-        ("let pb: MLPixelBuffer = buffer", "MLPixelBuffer"),
-        ("class Batch: MLBatchProvider {", "MLBatchProvider"),
-        ("let ap = MLArrayBatchProvider(array: providers)", "MLArrayBatchProvider"),
-        ("let hints = MLOptimizationHints()", "MLOptimizationHints"),
-        ("let spec = MLSpecialization.full", "MLSpecialization"),
-        ("let url = try MLModel.compileModel(at: modelURL)", "MLModel.compileModel(at:)"),
-        ("MLModel.load(contentsOf: url, configuration: config)", "MLModel.load(contentsOf:configuration:completionHandler:)"),
-        ("let sound = MLSoundClassifier()", "MLSoundClassifier"),
-        ("let imgCls = MLImageClassifier()", "MLImageClassifier"),
-    ])
+    @pytest.mark.parametrize(
+        "snippet,expected_api",
+        [
+            ("import CoreML", "import CoreML"),
+            ("@import CoreML;", "@import CoreML;"),
+            ("#import <CoreML/CoreML.h>", "#import <CoreML/CoreML.h>"),
+            (
+                "let model = try MLModel(contentsOf: url)",
+                "MLModel.init(contentsOf:)",
+            ),
+            ("let cfg = MLModelConfiguration()", "MLModelConfiguration"),
+            ("cfg.computeUnits = MLComputeUnits.all", "MLComputeUnits"),
+            (
+                "let arr = try MLMultiArray(shape: [1], dataType: .float32)",
+                "MLMultiArray",
+            ),
+            ("let dt = MLMultiArrayDataType.float32", "MLMultiArrayDataType"),
+            ("class MyProvider: MLFeatureProvider {", "MLFeatureProvider"),
+            ("let val = MLFeatureValue(int64: 42)", "MLFeatureValue"),
+            ("let type: MLFeatureType = .int64", "MLFeatureType"),
+            (
+                "let dict = MLDictionaryFeatureProvider(dictionary: d)",
+                "MLDictionaryFeatureProvider",
+            ),
+            (
+                "let result = try model.prediction(from: features)",
+                "MLModel.prediction(from:)",
+            ),
+            (
+                "let results = try model.predictions(fromBatch: batch)",
+                "MLModel.predictions(fromBatch:)",
+            ),
+            ("let opts = MLPredictionOptions()", "MLPredictionOptions"),
+            (
+                "let desc: MLModelDescription = model.modelDescription",
+                "MLModelDescription",
+            ),
+            (
+                "let fd: MLFeatureDescription = desc.inputDescriptionsByName[name]!",
+                "MLFeatureDescription",
+            ),
+            ("let key = MLModelMetadataKey.author", "MLModelMetadataKey"),
+            ("let vnModel = try VNCoreMLModel(for: mlModel)", "VNCoreMLModel"),
+            (
+                "let request = VNCoreMLRequest(model: vnModel)",
+                "VNCoreMLRequest",
+            ),
+            (
+                "let obs: VNCoreMLFeatureValueObservation = result",
+                "VNCoreMLFeatureValueObservation",
+            ),
+            ("let nlModel = try NLModel(contentsOf: url)", "NLModel"),
+            ("let nlCfg = NLModelConfiguration()", "NLModelConfiguration"),
+            ("let task = MLUpdateTask(forModelAt: url, ", "MLUpdateTask"),
+            ("let ctx: MLUpdateContext = context", "MLUpdateContext"),
+            (
+                "let ph = MLUpdateProgressHandlers(forEvents: [])",
+                "MLUpdateProgressHandlers",
+            ),
+            ("let metric = MLMetricKey.lossValue", "MLMetricKey"),
+            (
+                "let seq: MLSequence = MLSequence.init(strings: [])",
+                "MLSequence",
+            ),
+            ("let pb: MLPixelBuffer = buffer", "MLPixelBuffer"),
+            ("class Batch: MLBatchProvider {", "MLBatchProvider"),
+            (
+                "let ap = MLArrayBatchProvider(array: providers)",
+                "MLArrayBatchProvider",
+            ),
+            ("let hints = MLOptimizationHints()", "MLOptimizationHints"),
+            ("let spec = MLSpecialization.full", "MLSpecialization"),
+            (
+                "let url = try MLModel.compileModel(at: modelURL)",
+                "MLModel.compileModel(at:)",
+            ),
+            (
+                "MLModel.load(contentsOf: url, configuration: config)",
+                "MLModel.load(contentsOf:configuration:completionHandler:)",
+            ),
+            ("let sound = MLSoundClassifier()", "MLSoundClassifier"),
+            ("let imgCls = MLImageClassifier()", "MLImageClassifier"),
+        ],
+    )
     def test_detects_api(self, snippet: str, expected_api: str) -> None:
         report = _analyze(snippet)
         apis = {f.deprecated_api for f in report.findings}
@@ -96,6 +147,17 @@ class TestBasicDetection:
         apis = {f.deprecated_api for f in report.findings}
         assert "VNCoreMLRequest" not in apis
 
+    def test_no_false_positive_on_pure_swift(self) -> None:
+        code = (
+            "import Foundation\n"
+            "struct MyModel {\n"
+            "    var name: String\n"
+            "    var value: Double\n"
+            "}\n"
+        )
+        report = _analyze(code)
+        assert report.finding_count == 0
+
 
 # ---------------------------------------------------------------------------
 # Replacement suggestion
@@ -113,7 +175,9 @@ class TestReplacementSuggestion:
 
     def test_mlmodelconfiguration_replacement(self) -> None:
         report = _analyze("let cfg = MLModelConfiguration()")
-        f = next(x for x in report.findings if x.deprecated_api == "MLModelConfiguration")
+        f = next(
+            x for x in report.findings if x.deprecated_api == "MLModelConfiguration"
+        )
         assert "CAIModelConfiguration" in f.suggested_line
 
     def test_mlmultiarray_replacement(self) -> None:
@@ -123,15 +187,41 @@ class TestReplacementSuggestion:
 
     def test_vncoremlrequest_replacement(self) -> None:
         report = _analyze("let req = VNCoreMLRequest(model: m)")
-        f = next(x for x in report.findings if x.deprecated_api == "VNCoreMLRequest")
+        f = next(
+            x for x in report.findings if x.deprecated_api == "VNCoreMLRequest"
+        )
         assert "CAIVisionRequest" in f.suggested_line
 
     def test_original_line_preserved(self) -> None:
         source = "    let model = try MLModel(contentsOf: url)  // load"
         report = _analyze(source)
-        findings = [f for f in report.findings if f.deprecated_api == "MLModel.init(contentsOf:)"]
+        findings = [
+            f
+            for f in report.findings
+            if f.deprecated_api == "MLModel.init(contentsOf:)"
+        ]
         assert len(findings) >= 1
         assert findings[0].original_line == source
+
+    def test_suggested_line_differs_from_original(self) -> None:
+        report = _analyze("import CoreML")
+        f = next(x for x in report.findings if x.deprecated_api == "import CoreML")
+        assert f.original_line != f.suggested_line
+
+    def test_mlfeaturevalue_replacement(self) -> None:
+        report = _analyze("let v = MLFeatureValue(int64: 42)")
+        f = next(x for x in report.findings if x.deprecated_api == "MLFeatureValue")
+        assert "CAIFeatureValue" in f.suggested_line
+
+    def test_nlmodel_replacement(self) -> None:
+        report = _analyze("let m = try NLModel(contentsOf: url)")
+        f = next(x for x in report.findings if x.deprecated_api == "NLModel")
+        assert "CAILanguageModel" in f.suggested_line
+
+    def test_mlcomputeunits_replacement(self) -> None:
+        report = _analyze("config.computeUnits = MLComputeUnits.all")
+        f = next(x for x in report.findings if x.deprecated_api == "MLComputeUnits")
+        assert "CAIComputePolicy" in f.suggested_line
 
 
 # ---------------------------------------------------------------------------
@@ -153,6 +243,12 @@ class TestLocationAccuracy:
         # column should point to 'import' which starts at index 4
         assert f.column == 4
 
+    def test_column_zero_at_start_of_line(self) -> None:
+        content = "import CoreML"
+        report = _analyze(content)
+        f = next(x for x in report.findings if x.deprecated_api == "import CoreML")
+        assert f.column == 0
+
     def test_multiple_findings_sorted_by_line(self) -> None:
         content = (
             "import CoreML\n"
@@ -162,6 +258,18 @@ class TestLocationAccuracy:
         report = _analyze(content)
         line_numbers = [f.line_number for f in report.findings]
         assert line_numbers == sorted(line_numbers)
+
+    def test_finding_on_first_line(self) -> None:
+        content = "import CoreML\nlet x = 1"
+        report = _analyze(content)
+        f = next(x for x in report.findings if x.deprecated_api == "import CoreML")
+        assert f.line_number == 1
+
+    def test_finding_on_last_line_no_newline(self) -> None:
+        content = "let x = 1\nimport CoreML"
+        report = _analyze(content)
+        f = next(x for x in report.findings if x.deprecated_api == "import CoreML")
+        assert f.line_number == 2
 
 
 # ---------------------------------------------------------------------------
@@ -183,26 +291,43 @@ class TestSeverityFilter:
         assert Severity.LOW not in severities
         assert Severity.BREAKING in severities
 
+    def test_filter_breaking_excludes_medium(self) -> None:
+        content = "let cfg = MLModelConfiguration()\nlet cls = MLSoundClassifier()"
+        report = _analyze(content, severity_filter=Severity.BREAKING)
+        for f in report.findings:
+            assert f.severity == Severity.BREAKING
+
     def test_filter_high_excludes_low_and_medium(self) -> None:
         content = (
-            "import CoreML\n"          # LOW
-            "let cfg = MLModelConfiguration()\n"   # LOW
-            "let arr: MLMultiArray = t\n"           # HIGH
-            "let req = VNCoreMLRequest(model: m)\n" # HIGH
+            "import CoreML\n"  # LOW
+            "let cfg = MLModelConfiguration()\n"  # LOW
+            "let arr: MLMultiArray = t\n"  # HIGH
+            "let req = VNCoreMLRequest(model: m)\n"  # HIGH
         )
         report = _analyze(content, severity_filter=Severity.HIGH)
         for f in report.findings:
             assert f.severity in (Severity.HIGH, Severity.BREAKING)
 
     def test_no_filter_returns_all_severities(self) -> None:
-        content = (
-            "import CoreML\n"          # LOW
-            "let arr: MLMultiArray = t\n"           # HIGH
-        )
+        content = "import CoreML\nlet arr: MLMultiArray = t\n"
         report = _analyze(content, severity_filter=None)
         severities = {f.severity for f in report.findings}
         assert Severity.LOW in severities
         assert Severity.HIGH in severities
+
+    def test_filter_medium_excludes_low(self) -> None:
+        content = "import CoreML\nlet cfg = MLModelConfiguration()\n"
+        # import CoreML → LOW, MLModelConfiguration → LOW
+        # medium filter should exclude both
+        report = _analyze(content, severity_filter=Severity.MEDIUM)
+        for f in report.findings:
+            assert f.severity not in (Severity.LOW,)
+
+    def test_filter_medium_includes_medium(self) -> None:
+        content = "let cfg = MLComputeUnits.all\n"  # MEDIUM
+        report = _analyze(content, severity_filter=Severity.MEDIUM)
+        apis = {f.deprecated_api for f in report.findings}
+        assert "MLComputeUnits" in apis
 
 
 # ---------------------------------------------------------------------------
@@ -213,19 +338,30 @@ class TestSeverityFilter:
 class TestDeduplication:
     def test_same_api_same_line_detected_once(self) -> None:
         # A line with two references to the same API should yield only one finding
-        # for that API on that line.
         content = "let a: MLMultiArray = b as! MLMultiArray"
         report = _analyze(content)
-        ml_findings = [f for f in report.findings if f.deprecated_api == "MLMultiArray"]
+        ml_findings = [
+            f for f in report.findings if f.deprecated_api == "MLMultiArray"
+        ]
         assert len(ml_findings) == 1
 
     def test_same_api_different_lines_detected_separately(self) -> None:
         content = "let a: MLMultiArray = x\nlet b: MLMultiArray = y"
         report = _analyze(content)
-        ml_findings = [f for f in report.findings if f.deprecated_api == "MLMultiArray"]
+        ml_findings = [
+            f for f in report.findings if f.deprecated_api == "MLMultiArray"
+        ]
         assert len(ml_findings) == 2
         assert ml_findings[0].line_number == 1
         assert ml_findings[1].line_number == 2
+
+    def test_dedup_key_is_line_and_api(self) -> None:
+        # Two different APIs on the same line should both be detected
+        content = "let a: MLMultiArray = MLFeatureValue(int64: 1)"
+        report = _analyze(content)
+        apis = {f.deprecated_api for f in report.findings}
+        assert "MLMultiArray" in apis
+        assert "MLFeatureValue" in apis
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +404,16 @@ class TestObjCPatterns:
         apis = {f.deprecated_api for f in report.findings}
         assert "[VNCoreMLRequest alloc]" in apis
 
+    def test_objc_replacement_contains_cai(self) -> None:
+        snippet = "#import <CoreML/CoreML.h>"
+        report = _analyze(snippet, language="objc")
+        f = next(
+            x
+            for x in report.findings
+            if x.deprecated_api == "#import <CoreML/CoreML.h>"
+        )
+        assert "CoreAI" in f.suggested_line
+
 
 # ---------------------------------------------------------------------------
 # FileReport metadata
@@ -275,12 +421,21 @@ class TestObjCPatterns:
 
 
 class TestFileReportMetadata:
-    def test_language_preserved(self) -> None:
+    def test_language_preserved_swift(self) -> None:
         analyzer = Analyzer()
-        sf = SourceFile(path=FIXTURE_PATH, language="swift")
-        if FIXTURE_PATH.exists():
-            report = analyzer.analyze_file(sf)
-            assert report.language == "swift"
+        report = analyzer.analyze_content(
+            "import CoreML", file_path=Path("Foo.swift"), language="swift"
+        )
+        assert report.language == "swift"
+
+    def test_language_preserved_objc(self) -> None:
+        analyzer = Analyzer()
+        report = analyzer.analyze_content(
+            "#import <CoreML/CoreML.h>",
+            file_path=Path("Foo.m"),
+            language="objc",
+        )
+        assert report.language == "objc"
 
     def test_empty_content_gives_empty_report(self) -> None:
         report = _analyze("")
@@ -295,6 +450,22 @@ class TestFileReportMetadata:
         )
         report = _analyze(clean)
         assert report.finding_count == 0
+
+    def test_file_path_stored_in_findings(self) -> None:
+        analyzer = Analyzer()
+        report = analyzer.analyze_content(
+            "import CoreML", file_path=Path("App/Model.swift"), language="swift"
+        )
+        for finding in report.findings:
+            assert finding.file_path == Path("App/Model.swift")
+
+    def test_unreadable_file_returns_empty_report(self, tmp_path: Path) -> None:
+        missing = tmp_path / "NonExistent.swift"
+        sf = SourceFile(path=missing, language="swift")
+        analyzer = Analyzer()
+        report = analyzer.analyze_file(sf)
+        assert report.finding_count == 0
+        assert report.language == "swift"
 
 
 # ---------------------------------------------------------------------------
@@ -344,6 +515,20 @@ class TestFixtureIntegration:
         apis = {f.deprecated_api for f in report.findings}
         assert "MLMultiArray" in apis
 
+    def test_fixture_detects_mlupdatetask(self) -> None:
+        analyzer = Analyzer()
+        sf = SourceFile(path=FIXTURE_PATH, language="swift")
+        report = analyzer.analyze_file(sf)
+        apis = {f.deprecated_api for f in report.findings}
+        assert "MLUpdateTask" in apis
+
+    def test_fixture_detects_nlmodel(self) -> None:
+        analyzer = Analyzer()
+        sf = SourceFile(path=FIXTURE_PATH, language="swift")
+        report = analyzer.analyze_file(sf)
+        apis = {f.deprecated_api for f in report.findings}
+        assert "NLModel" in apis
+
     def test_fixture_complexity_score_positive(self) -> None:
         analyzer = Analyzer()
         sf = SourceFile(path=FIXTURE_PATH, language="swift")
@@ -357,6 +542,26 @@ class TestFixtureIntegration:
         line_numbers = [f.line_number for f in report.findings]
         assert line_numbers == sorted(line_numbers)
 
+    def test_fixture_language_is_swift(self) -> None:
+        analyzer = Analyzer()
+        sf = SourceFile(path=FIXTURE_PATH, language="swift")
+        report = analyzer.analyze_file(sf)
+        assert report.language == "swift"
+
+    def test_fixture_max_severity_is_breaking_or_high(self) -> None:
+        analyzer = Analyzer()
+        sf = SourceFile(path=FIXTURE_PATH, language="swift")
+        report = analyzer.analyze_file(sf)
+        assert report.max_severity in (Severity.BREAKING, Severity.HIGH)
+
+    def test_fixture_multiple_severity_levels_present(self) -> None:
+        analyzer = Analyzer()
+        sf = SourceFile(path=FIXTURE_PATH, language="swift")
+        report = analyzer.analyze_file(sf)
+        severities = {f.severity for f in report.findings}
+        # Sample fixture should contain both low and high severity findings
+        assert len(severities) > 1
+
 
 # ---------------------------------------------------------------------------
 # MigrationReport builder
@@ -367,7 +572,9 @@ class TestMigrationReportBuilder:
     def test_build_from_multiple_files(self, tmp_path: Path) -> None:
         f1 = tmp_path / "A.swift"
         f2 = tmp_path / "B.swift"
-        f1.write_text("import CoreML\nlet arr: MLMultiArray = x", encoding="utf-8")
+        f1.write_text(
+            "import CoreML\nlet arr: MLMultiArray = x", encoding="utf-8"
+        )
         f2.write_text("let cfg = MLModelConfiguration()", encoding="utf-8")
 
         source_files = [
@@ -411,6 +618,55 @@ class TestMigrationReportBuilder:
         source_files = [SourceFile(path=f, language="swift")]
         report_all = analyze_source_files(source_files, root_path=tmp_path)
         report_breaking = analyze_source_files(
-            source_files, root_path=tmp_path, severity_filter=Severity.BREAKING
+            source_files,
+            root_path=tmp_path,
+            severity_filter=Severity.BREAKING,
         )
         assert report_breaking.total_findings < report_all.total_findings
+
+    def test_report_root_path_stored(self, tmp_path: Path) -> None:
+        f = tmp_path / "A.swift"
+        f.write_text("import CoreML", encoding="utf-8")
+        source_files = [SourceFile(path=f, language="swift")]
+        report = analyze_source_files(
+            source_files, root_path=tmp_path.resolve()
+        )
+        assert report.root_path == tmp_path.resolve()
+
+    def test_scanned_files_count_is_total_not_affected(self, tmp_path: Path) -> None:
+        clean = tmp_path / "Clean.swift"
+        dirty = tmp_path / "Dirty.swift"
+        clean.write_text("let x = 1", encoding="utf-8")
+        dirty.write_text("import CoreML", encoding="utf-8")
+        source_files = [
+            SourceFile(path=clean, language="swift"),
+            SourceFile(path=dirty, language="swift"),
+        ]
+        report = analyze_source_files(source_files, root_path=tmp_path)
+        assert report.scanned_files == 2
+        assert report.affected_files == 1
+
+    def test_file_reports_sorted_by_path(self, tmp_path: Path) -> None:
+        for name in ("Z.swift", "A.swift", "M.swift"):
+            (tmp_path / name).write_text("import CoreML", encoding="utf-8")
+        source_files = [
+            SourceFile(path=tmp_path / n, language="swift")
+            for n in ("Z.swift", "A.swift", "M.swift")
+        ]
+        report = analyze_source_files(source_files, root_path=tmp_path)
+        paths = [str(fr.file_path) for fr in report.file_reports]
+        assert paths == sorted(paths)
+
+    def test_analyze_files_only_returns_files_with_findings(self, tmp_path: Path) -> None:
+        clean = tmp_path / "Clean.swift"
+        dirty = tmp_path / "Dirty.swift"
+        clean.write_text("let x = 1", encoding="utf-8")
+        dirty.write_text("import CoreML", encoding="utf-8")
+        analyzer = Analyzer()
+        source_files = [
+            SourceFile(path=clean, language="swift"),
+            SourceFile(path=dirty, language="swift"),
+        ]
+        file_reports = analyzer.analyze_files(source_files)
+        assert len(file_reports) == 1
+        assert file_reports[0].file_path == dirty

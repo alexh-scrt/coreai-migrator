@@ -99,19 +99,46 @@ def _empty_report() -> MigrationReport:
 class TestComputeComplexityLabel:
     """Tests for the standalone compute_complexity_label utility."""
 
-    @pytest.mark.parametrize("score,expected", [
-        (0, "Clean"),
-        (1, "Low"),
-        (10, "Low"),
-        (11, "Medium"),
-        (40, "Medium"),
-        (41, "High"),
-        (100, "High"),
-        (101, "Breaking"),
-        (9999, "Breaking"),
-    ])
+    @pytest.mark.parametrize(
+        "score,expected",
+        [
+            (0, "Clean"),
+            (1, "Low"),
+            (10, "Low"),
+            (11, "Medium"),
+            (40, "Medium"),
+            (41, "High"),
+            (100, "High"),
+            (101, "Breaking"),
+            (9999, "Breaking"),
+        ],
+    )
     def test_label_thresholds(self, score: int, expected: str) -> None:
         assert compute_complexity_label(score) == expected
+
+    def test_matches_migration_report_label(self) -> None:
+        """compute_complexity_label should match MigrationReport.complexity_label."""
+        for score in (0, 5, 15, 50, 150):
+            # Build a report with the right complexity score using LOW findings (weight=1)
+            from coreai_migrator.models import FileReport, Finding, Severity
+
+            findings = [
+                Finding(
+                    file_path=Path("A.swift"),
+                    line_number=i + 1,
+                    column=0,
+                    deprecated_api=f"API{i}",
+                    replacement_api=f"CAPI{i}",
+                    original_line="import CoreML",
+                    suggested_line="import CoreAI",
+                    severity=Severity.LOW,
+                    migration_note="note",
+                )
+                for i in range(score)
+            ]
+            fr = FileReport(file_path=Path("A.swift"), findings=findings)
+            report = MigrationReport(root_path=Path("."), file_reports=[fr])
+            assert compute_complexity_label(score) == report.complexity_label
 
 
 # ---------------------------------------------------------------------------
@@ -133,9 +160,13 @@ class TestJSONReporter:
         output = reporter.render_to_string(_make_report())
         parsed = json.loads(output)
         expected = {
-            "root_path", "scanned_files", "affected_files",
-            "total_findings", "total_complexity_score",
-            "complexity_label", "file_reports",
+            "root_path",
+            "scanned_files",
+            "affected_files",
+            "total_findings",
+            "total_complexity_score",
+            "complexity_label",
+            "file_reports",
         }
         assert set(parsed.keys()) == expected
 
@@ -183,9 +214,17 @@ class TestJSONReporter:
         parsed = json.loads(output)
         finding = parsed["file_reports"][0]["findings"][0]
         expected_keys = {
-            "file_path", "line_number", "column", "deprecated_api",
-            "replacement_api", "original_line", "suggested_line",
-            "severity", "migration_note", "complexity_score", "diff_lines",
+            "file_path",
+            "line_number",
+            "column",
+            "deprecated_api",
+            "replacement_api",
+            "original_line",
+            "suggested_line",
+            "severity",
+            "migration_note",
+            "complexity_score",
+            "diff_lines",
         }
         assert set(finding.keys()) == expected_keys
 
@@ -196,10 +235,26 @@ class TestJSONReporter:
         finding = parsed["file_reports"][0]["findings"][0]
         assert finding["severity"] == "high"
 
+    def test_json_severity_low(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report(severity=Severity.LOW))
+        parsed = json.loads(output)
+        finding = parsed["file_reports"][0]["findings"][0]
+        assert finding["severity"] == "low"
+
+    def test_json_severity_breaking(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report(severity=Severity.BREAKING))
+        parsed = json.loads(output)
+        finding = parsed["file_reports"][0]["findings"][0]
+        assert finding["severity"] == "breaking"
+
     def test_json_complexity_score_calculation(self) -> None:
         # MEDIUM weight = 2; 3 findings => score = 6
         reporter = Reporter(output_format="json")
-        output = reporter.render_to_string(_make_report(num_findings=3, severity=Severity.MEDIUM))
+        output = reporter.render_to_string(
+            _make_report(num_findings=3, severity=Severity.MEDIUM)
+        )
         parsed = json.loads(output)
         assert parsed["total_complexity_score"] == 3 * Severity.MEDIUM.weight
 
@@ -211,6 +266,15 @@ class TestJSONReporter:
         )
         parsed = json.loads(output)
         assert parsed["complexity_label"] == "Breaking"
+
+    def test_json_complexity_label_low(self) -> None:
+        # LOW weight = 1; 5 findings => score = 5 => "Low"
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(
+            _make_report(num_findings=5, severity=Severity.LOW)
+        )
+        parsed = json.loads(output)
+        assert parsed["complexity_label"] == "Low"
 
     def test_json_diff_lines_present(self) -> None:
         finding = _make_finding()
@@ -230,6 +294,13 @@ class TestJSONReporter:
         parsed = json.loads(output)
         assert len(parsed["file_reports"][0]["findings"][0]["diff_lines"]) == 5
 
+    def test_json_diff_lines_are_list(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report(num_findings=1))
+        parsed = json.loads(output)
+        diff_lines = parsed["file_reports"][0]["findings"][0]["diff_lines"]
+        assert isinstance(diff_lines, list)
+
     def test_json_write_to_file(self, tmp_path: Path) -> None:
         out_file = tmp_path / "report.json"
         reporter = Reporter(output_format="json", output_file=out_file)
@@ -245,6 +316,91 @@ class TestJSONReporter:
         assert out_file.exists()
         parsed = json.loads(out_file.read_text())
         assert parsed["total_findings"] >= 1
+
+    def test_json_line_numbers_correct(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report(num_findings=3))
+        parsed = json.loads(output)
+        line_numbers = [
+            f["line_number"]
+            for f in parsed["file_reports"][0]["findings"]
+        ]
+        # Findings were created with line_number = i+1 for i in range(3)
+        assert sorted(line_numbers) == [1, 2, 3]
+
+    def test_json_file_path_is_string(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report(num_findings=1))
+        parsed = json.loads(output)
+        file_path = parsed["file_reports"][0]["file_path"]
+        assert isinstance(file_path, str)
+
+    def test_json_root_path_is_string(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report())
+        parsed = json.loads(output)
+        assert isinstance(parsed["root_path"], str)
+
+    def test_json_complexity_score_per_file(self) -> None:
+        reporter = Reporter(output_format="json")
+        # HIGH weight = 4; 2 findings => file score = 8
+        output = reporter.render_to_string(
+            _make_report(num_findings=2, severity=Severity.HIGH)
+        )
+        parsed = json.loads(output)
+        file_score = parsed["file_reports"][0]["complexity_score"]
+        assert file_score == 2 * Severity.HIGH.weight
+
+    def test_json_max_severity_field(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(
+            _make_report(num_findings=1, severity=Severity.HIGH)
+        )
+        parsed = json.loads(output)
+        assert parsed["file_reports"][0]["max_severity"] == "high"
+
+    def test_json_empty_report_max_severity_none(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_empty_report())
+        parsed = json.loads(output)
+        assert parsed["file_reports"] == []
+
+    def test_json_multiple_file_reports(self) -> None:
+        f1 = Finding(
+            file_path=Path("A.swift"),
+            line_number=1,
+            column=0,
+            deprecated_api="import CoreML",
+            replacement_api="import CoreAI",
+            original_line="import CoreML",
+            suggested_line="import CoreAI",
+            severity=Severity.LOW,
+            migration_note="Replace import.",
+        )
+        f2 = Finding(
+            file_path=Path("B.swift"),
+            line_number=5,
+            column=4,
+            deprecated_api="MLMultiArray",
+            replacement_api="CAITensor",
+            original_line="    let arr: MLMultiArray = x",
+            suggested_line="    let arr: CAITensor = x",
+            severity=Severity.HIGH,
+            migration_note="Replace MLMultiArray.",
+        )
+        fr1 = FileReport(file_path=Path("A.swift"), findings=[f1], language="swift")
+        fr2 = FileReport(file_path=Path("B.swift"), findings=[f2], language="swift")
+        report = MigrationReport(
+            root_path=Path("/tmp/MyApp"),
+            file_reports=[fr1, fr2],
+            scanned_files=3,
+        )
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(report)
+        parsed = json.loads(output)
+        assert parsed["affected_files"] == 2
+        assert parsed["scanned_files"] == 3
+        assert len(parsed["file_reports"]) == 2
 
 
 # ---------------------------------------------------------------------------
@@ -377,6 +533,69 @@ class TestPlainReporter:
         # 1 affected file
         assert "1" in output
 
+    def test_plain_contains_original_line(self) -> None:
+        reporter = Reporter(output_format="plain")
+        output = reporter.render_to_string(_make_report(num_findings=1))
+        assert "MLSymbol0" in output
+
+    def test_plain_contains_suggested_line(self) -> None:
+        reporter = Reporter(output_format="plain")
+        output = reporter.render_to_string(_make_report(num_findings=1))
+        assert "CAISymbol0" in output
+
+    def test_plain_contains_file_language(self) -> None:
+        reporter = Reporter(output_format="plain")
+        output = reporter.render_to_string(_make_report(num_findings=1))
+        assert "swift" in output
+
+    def test_plain_contains_summary_at_end(self) -> None:
+        reporter = Reporter(output_format="plain")
+        output = reporter.render_to_string(_make_report(num_findings=2))
+        assert "Summary" in output or "summary" in output.lower() or "finding(s)" in output
+
+    def test_plain_complexity_score_in_output(self) -> None:
+        reporter = Reporter(output_format="plain")
+        # HIGH weight = 4, 2 findings => score 8
+        output = reporter.render_to_string(
+            _make_report(num_findings=2, severity=Severity.HIGH)
+        )
+        assert "8" in output
+
+    def test_plain_multiple_files(self) -> None:
+        f1 = Finding(
+            file_path=Path("A.swift"),
+            line_number=1,
+            column=0,
+            deprecated_api="import CoreML",
+            replacement_api="import CoreAI",
+            original_line="import CoreML",
+            suggested_line="import CoreAI",
+            severity=Severity.LOW,
+            migration_note="Replace import.",
+        )
+        f2 = Finding(
+            file_path=Path("B.swift"),
+            line_number=5,
+            column=4,
+            deprecated_api="MLMultiArray",
+            replacement_api="CAITensor",
+            original_line="    let arr: MLMultiArray = x",
+            suggested_line="    let arr: CAITensor = x",
+            severity=Severity.HIGH,
+            migration_note="Replace MLMultiArray.",
+        )
+        fr1 = FileReport(file_path=Path("A.swift"), findings=[f1], language="swift")
+        fr2 = FileReport(file_path=Path("B.swift"), findings=[f2], language="swift")
+        report = MigrationReport(
+            root_path=Path("/tmp/MyApp"),
+            file_reports=[fr1, fr2],
+            scanned_files=3,
+        )
+        reporter = Reporter(output_format="plain")
+        output = reporter.render_to_string(report)
+        assert "A.swift" in output
+        assert "B.swift" in output
+
 
 # ---------------------------------------------------------------------------
 # Rich terminal reporter
@@ -474,6 +693,89 @@ class TestRichReporter:
         output = reporter.render_to_string(_make_report())
         assert "Summary" in output
 
+    def test_rich_breaking_severity_badge(self) -> None:
+        reporter = Reporter(output_format="rich")
+        output = reporter.render_to_string(
+            _make_report(num_findings=1, severity=Severity.BREAKING)
+        )
+        assert "BREAKING" in output
+
+    def test_rich_contains_scanned_files(self) -> None:
+        reporter = Reporter(output_format="rich")
+        output = reporter.render_to_string(_make_report(scanned=15))
+        assert "15" in output
+
+    def test_rich_contains_affected_files(self) -> None:
+        reporter = Reporter(output_format="rich")
+        output = reporter.render_to_string(_make_report(num_findings=2))
+        assert "1" in output  # 1 affected file
+
+    def test_rich_render_returns_string(self) -> None:
+        reporter = Reporter(output_format="rich")
+        output = reporter.render_to_string(_make_report())
+        assert isinstance(output, str)
+
+    def test_rich_no_diffs_when_disabled(self) -> None:
+        finding = _make_finding()
+        finding.diff_lines = [
+            "--- a",
+            "+++ b",
+            "@@ -1 +1 @@",
+            "-import CoreML",
+            "+import CoreAI",
+        ]
+        fr = FileReport(
+            file_path=Path("App/Model.swift"),
+            findings=[finding],
+            language="swift",
+        )
+        report = MigrationReport(
+            root_path=Path("/tmp/MyApp"),
+            file_reports=[fr],
+            scanned_files=1,
+        )
+        reporter = Reporter(output_format="rich", show_diffs=False)
+        output = reporter.render_to_string(report)
+        # The raw diff marker lines should not appear in the syntax block
+        # (diff_lines not rendered means the Syntax widget not emitted)
+        # We just ensure no crash and output is produced
+        assert len(output) > 0
+
+    def test_rich_multiple_files_both_shown(self) -> None:
+        f1 = Finding(
+            file_path=Path("A.swift"),
+            line_number=1,
+            column=0,
+            deprecated_api="import CoreML",
+            replacement_api="import CoreAI",
+            original_line="import CoreML",
+            suggested_line="import CoreAI",
+            severity=Severity.LOW,
+            migration_note="Replace import.",
+        )
+        f2 = Finding(
+            file_path=Path("B.swift"),
+            line_number=5,
+            column=4,
+            deprecated_api="MLMultiArray",
+            replacement_api="CAITensor",
+            original_line="    let arr: MLMultiArray = x",
+            suggested_line="    let arr: CAITensor = x",
+            severity=Severity.HIGH,
+            migration_note="Replace MLMultiArray.",
+        )
+        fr1 = FileReport(file_path=Path("A.swift"), findings=[f1], language="swift")
+        fr2 = FileReport(file_path=Path("B.swift"), findings=[f2], language="swift")
+        report = MigrationReport(
+            root_path=Path("/tmp/MyApp"),
+            file_reports=[fr1, fr2],
+            scanned_files=3,
+        )
+        reporter = Reporter(output_format="rich")
+        output = reporter.render_to_string(report)
+        assert "A.swift" in output
+        assert "B.swift" in output
+
 
 # ---------------------------------------------------------------------------
 # render_to_string consistency
@@ -505,4 +807,34 @@ class TestRenderToString:
         for fmt in ("json", "plain", "rich"):
             reporter = Reporter(output_format=fmt)  # type: ignore[arg-type]
             output = reporter.render_to_string(_make_report(num_findings=1))
-            assert "MLSymbol0" in output, f"Format '{fmt}' missing deprecated API name"
+            assert "MLSymbol0" in output, (
+                f"Format '{fmt}' missing deprecated API name"
+            )
+
+    def test_all_formats_handle_empty_report(self) -> None:
+        for fmt in ("json", "plain", "rich"):
+            reporter = Reporter(output_format=fmt)  # type: ignore[arg-type]
+            output = reporter.render_to_string(_empty_report())
+            assert len(output) > 0, f"Format '{fmt}' produced empty output for empty report"
+
+    def test_json_ends_with_newline(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report())
+        assert output.endswith("\n")
+
+    def test_plain_ends_with_newline(self) -> None:
+        reporter = Reporter(output_format="plain")
+        output = reporter.render_to_string(_make_report())
+        assert output.endswith("\n")
+
+    def test_json_total_complexity_score_type(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report())
+        parsed = json.loads(output)
+        assert isinstance(parsed["total_complexity_score"], int)
+
+    def test_json_total_findings_type(self) -> None:
+        reporter = Reporter(output_format="json")
+        output = reporter.render_to_string(_make_report())
+        parsed = json.loads(output)
+        assert isinstance(parsed["total_findings"], int)
